@@ -1,16 +1,25 @@
 import os
 import json
-from google import genai
+import google.generativeai as genai
 
 from app.tools.firestore_client import FirestoreClient
 from app.models.schema import ConceptLink
 
 
-# ✅ Gemini client (NEW SDK)
-client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+# ── Gemini setup (SAFE) ─────────────────────
+
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 
-# ✅ Lazy DB (fix hanging)
+def get_model():
+    """Lazy load Gemini model"""
+    return genai.GenerativeModel(
+        os.getenv("GEMINI_MODEL", "models/gemini-pro")
+    )
+
+
+# ── Firestore (SAFE) ─────────────────────
+
 def get_db():
     return FirestoreClient()
 
@@ -27,17 +36,17 @@ All concepts:
 {all_concepts}
 
 Return JSON:
-{
+{{
   "bridges": [
-    {
+    {{
       "from_concept": "...",
       "to_concept": "...",
       "relationship": "...",
       "bridge_explanation": "...",
       "analogy": "..."
-    }
+    }}
   ]
-}
+}}
 """
 
 
@@ -51,11 +60,30 @@ Return JSON.
 """
 
 
+# ── HELPERS ─────────────────────────────
+
+def clean_json_response(raw: str):
+    if not raw:
+        return None
+
+    raw = raw.strip()
+
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+
+    try:
+        return json.loads(raw)
+    except:
+        return None
+
+
 # ── CORE FUNCTIONS ─────────────────────
 
 def find_and_bridge_isolated_concepts(student_id: str) -> dict:
 
-    db = get_db()   # ✅ FIX
+    db = get_db()
 
     concepts = db.get_concepts(student_id)
     links = db.get_concept_links(student_id)
@@ -78,22 +106,16 @@ def find_and_bridge_isolated_concepts(student_id: str) -> dict:
         all_concepts=json.dumps([c.name for c in concepts]),
     )
 
-    # ✅ NEW SDK CALL
-    response = client.models.generate_content(
-        model="gemini-1.5-flash",
-        contents=prompt
-    )
-
-    raw = response.text.strip()
-
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-
     try:
-        result = json.loads(raw)
-    except:
+        model = get_model()
+        response = model.generate_content(prompt)
+        raw = response.text
+    except Exception as e:
+        return {"error": f"Gemini error: {str(e)}"}
+
+    result = clean_json_response(raw)
+
+    if not result:
         return {"error": "Failed to parse AI response", "raw": raw}
 
     # save links
@@ -117,7 +139,7 @@ def find_and_bridge_isolated_concepts(student_id: str) -> dict:
 
 def generate_analogy_for_concept(student_id: str, concept_id: str) -> dict:
 
-    db = get_db()   # ✅ FIX
+    db = get_db()
 
     concept = db.get_concept(student_id, concept_id)
 
@@ -129,20 +151,16 @@ def generate_analogy_for_concept(student_id: str, concept_id: str) -> dict:
         concept_description=concept.description,
     )
 
-    # ✅ NEW SDK CALL
-    response = client.models.generate_content(
-        model="gemini-1.5-flash",
-        contents=prompt
-    )
-
-    raw = response.text.strip()
-
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-
     try:
-        return json.loads(raw)
-    except:
+        model = get_model()
+        response = model.generate_content(prompt)
+        raw = response.text
+    except Exception as e:
+        return {"error": f"Gemini error: {str(e)}"}
+
+    result = clean_json_response(raw)
+
+    if not result:
         return {"error": "Failed to parse response", "raw": raw}
+
+    return result
