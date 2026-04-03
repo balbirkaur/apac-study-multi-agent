@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from google.cloud import firestore
-from models.schema import Concept, ConceptLink, ForgettingState, StudentSession
+from app.models.schema import Concept, ConceptLink, ForgettingState, StudentSession
 
 
 class FirestoreClient:

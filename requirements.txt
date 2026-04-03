@@ -1,8 +1,7 @@
 fastapi
 uvicorn
 google-generativeai
-google-cloud-bigquery
+google-cloud-firestore
 google-auth
 python-dotenv
-google-cloud-firestore
 PyPDF2

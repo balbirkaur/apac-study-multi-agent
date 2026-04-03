@@ -1,6 +1,6 @@
 import math
 from datetime import datetime, timedelta
-from models.schema import ForgettingState
+from app.models.schema import ForgettingState
 
 
 from datetime import datetime

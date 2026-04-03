@@ -8,19 +8,30 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from agents.orchestrator import handle_chat
-from agents.ingestion_agent import ingest_document
-from agents.knowledge_graph_agent import analyse_knowledge_graph
-from agents.diagnostic_agent import generate_quiz_for_concept, generate_quiz_for_weakest_concept, submit_quiz_answer
-from agents.connection_agent import find_and_bridge_isolated_concepts, generate_analogy_for_concept
-from agents.intervention_agent import get_next_intervention, generate_revision_plan, get_daily_summary
+from app.agents.orchestrator import handle_chat
+from app.agents.ingestion_agent import ingest_document
+from app.agents.knowledge_graph_agent import analyse_knowledge_graph
+from app.agents.diagnostic_agent import (
+    generate_quiz_for_concept,
+    generate_quiz_for_weakest_concept,
+    submit_quiz_answer,
+)
+from app.agents.connection_agent import (
+    find_and_bridge_isolated_concepts,
+    generate_analogy_for_concept,
+)
+from app.agents.intervention_agent import (
+    get_next_intervention,
+    generate_revision_plan,
+    get_daily_summary,
+)
 
-from tools.firestore_client import FirestoreClient
-from tools.forgetting_curve import compute_retention, get_urgency_label
+from app.tools.firestore_client import FirestoreClient
+from app.tools.forgetting_curve import compute_retention, get_urgency_label
 
-from datetime import datetime
-
-db = FirestoreClient()
+# ❗ FIX: remove global DB initialization
+def get_db():
+    return FirestoreClient()
 
 
 @asynccontextmanager
@@ -43,14 +54,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Health ─────────────────────────────
+
+# ── ROOT ─────────────────────────────
+
+@app.get("/")
+def root():
+    return {
+        "message": "Welcome to MindMap - AI Study Productivity Assistant",
+        "docs": "/docs",
+        "status": "running"
+    }
+
+
+# ── HEALTH ───────────────────────────
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
 
-# ── Ingest ─────────────────────────────
+# ── INGEST ───────────────────────────
 
 class TextIngestionRequest(BaseModel):
     student_id: str
@@ -72,17 +95,19 @@ async def ingest_text(request: TextIngestionRequest):
         return {"error": str(e)}
 
 
-# ── Graph ─────────────────────────────
+# ── GRAPH ────────────────────────────
 
 @app.get("/graph/{student_id}")
 async def get_graph(student_id: str):
     return analyse_knowledge_graph(student_id)
 
 
-# ── Retention ─────────────────────────
+# ── RETENTION ─────────────────────────
 
 @app.get("/retention/{student_id}")
 async def get_retention(student_id: str):
+    db = get_db()   # ✅ FIX
+
     states = db.get_all_forgetting_states(student_id)[:10]
     concepts = {c.id: c for c in db.get_concepts(student_id)}
 
@@ -115,10 +140,12 @@ async def get_retention(student_id: str):
     }
 
 
-# ── Review ────────────────────────────
+# ── REVIEW ────────────────────────────
 
 @app.get("/review/{student_id}")
 async def get_review(student_id: str):
+    db = get_db()   # ✅ FIX
+
     due = db.get_due_for_review(student_id)
     concepts = {c.id: c for c in db.get_concepts(student_id)}
 
@@ -145,7 +172,7 @@ async def get_review(student_id: str):
     return {"concepts": result}
 
 
-# ── Chat ─────────────────────────────
+# ── CHAT ─────────────────────────────
 
 class ChatRequest(BaseModel):
     student_id: str
@@ -161,7 +188,7 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── Quiz ─────────────────────────────
+# ── QUIZ ─────────────────────────────
 
 @app.get("/quiz/{student_id}/weakest")
 async def weakest_quiz(student_id: str):
@@ -188,7 +215,7 @@ async def submit_quiz(submission: QuizSubmission):
     )
 
 
-# ── Intervention ─────────────────────
+# ── INTERVENTION ─────────────────────
 
 @app.get("/intervention/{student_id}")
 async def intervention(student_id: str):

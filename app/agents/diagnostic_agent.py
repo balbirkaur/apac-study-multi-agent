@@ -1,22 +1,28 @@
 import os
 import json
-from datetime import datetime
 
 import google.generativeai as genai
 
-from tools.firestore_client import FirestoreClient
-from tools.forgetting_curve import compute_retention, update_stability_after_review
+from app.tools.firestore_client import FirestoreClient
+from app.tools.forgetting_curve import compute_retention, update_stability_after_review
 
 
-# ── Gemini setup ─────────────────────
+# ── Gemini setup (SAFE) ─────────────────────
 
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-_model = genai.GenerativeModel(
-    os.getenv("GEMINI_MODEL", "gemini-1.5-flash")  # ✅ fixed model
-)
 
-_db = FirestoreClient()
+def get_model():
+    """Lazy load Gemini model (prevents app hanging)"""
+    return genai.GenerativeModel(
+        os.getenv("GEMINI_MODEL", "models/gemini-pro")
+    )
+
+
+# ── Firestore (SAFE) ─────────────────────
+
+def get_db():
+    return FirestoreClient()
 
 
 # ── PROMPT ───────────────────────────
@@ -29,22 +35,21 @@ Description: {concept_description}
 Retention: {retention}
 
 Return JSON:
-{{
+{
   "questions": [
-    {{
+    {
       "question": "...",
       "options": ["A", "B", "C", "D"],
       "answer": "A"
-    }}
+    }
   ]
-}}
+}
 """
 
 
 # ── HELPERS ──────────────────────────
 
 def safe_retention(state):
-    """Safely compute retention even if fields are missing"""
     strength = getattr(state, "strength", 1.0)
     last_reviewed = getattr(state, "last_reviewed_at", None)
 
@@ -53,15 +58,35 @@ def safe_retention(state):
     return 0.5
 
 
+def clean_json_response(raw: str):
+    """Clean Gemini markdown/json response"""
+    if not raw:
+        return None
+
+    raw = raw.strip()
+
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+
+    try:
+        return json.loads(raw)
+    except:
+        return None
+
+
 # ── QUIZ FOR SINGLE CONCEPT ──────────
 
 def generate_quiz_for_concept(student_id: str, concept_id: str) -> dict:
 
-    concept = _db.get_concept(student_id, concept_id)
+    db = get_db()
+
+    concept = db.get_concept(student_id, concept_id)
     if not concept:
         return {"error": "Concept not found"}
 
-    state = _db.get_forgetting_state(student_id, concept_id)
+    state = db.get_forgetting_state(student_id, concept_id)
     if not state:
         return {"error": "No forgetting state"}
 
@@ -73,18 +98,16 @@ def generate_quiz_for_concept(student_id: str, concept_id: str) -> dict:
         retention=round(retention, 2),
     )
 
-    response = _model.generate_content(prompt)
-    raw = response.text.strip()
-
-    # clean markdown
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-
     try:
-        quiz = json.loads(raw)
+        model = get_model()
+        response = model.generate_content(prompt)
+        raw = response.text
     except Exception as e:
+        return {"error": f"Gemini error: {str(e)}"}
+
+    quiz = clean_json_response(raw)
+
+    if not quiz:
         return {"error": "Failed to parse quiz", "raw": raw}
 
     quiz["concept"] = concept.name
@@ -97,7 +120,9 @@ def generate_quiz_for_concept(student_id: str, concept_id: str) -> dict:
 
 def generate_quiz_for_weakest_concept(student_id: str) -> dict:
 
-    states = _db.get_all_forgetting_states(student_id)
+    db = get_db()
+
+    states = db.get_all_forgetting_states(student_id)
 
     if not states:
         return {"error": "No concepts available"}
@@ -108,7 +133,6 @@ def generate_quiz_for_weakest_concept(student_id: str) -> dict:
         retention = safe_retention(s)
         scored.append((s, retention))
 
-    # sort by weakest retention
     scored.sort(key=lambda x: x[1])
 
     weakest_state = scored[0][0]
@@ -120,7 +144,9 @@ def generate_quiz_for_weakest_concept(student_id: str) -> dict:
 
 def submit_quiz_answer(student_id: str, concept_id: str, score: float) -> dict:
 
-    state = _db.get_forgetting_state(student_id, concept_id)
+    db = get_db()
+
+    state = db.get_forgetting_state(student_id, concept_id)
 
     if not state:
         return {"error": "State not found"}
@@ -129,7 +155,7 @@ def submit_quiz_answer(student_id: str, concept_id: str, score: float) -> dict:
 
     updated = update_stability_after_review(state, recalled)
 
-    _db.save_forgetting_state(updated)
+    db.save_forgetting_state(updated)
 
     return {
         "concept_id": concept_id,

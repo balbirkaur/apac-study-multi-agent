@@ -1,24 +1,30 @@
 import os
 import json
-import google.generativeai as genai
+from google import genai
 
-from tools.firestore_client import FirestoreClient
-from models.schema import ConceptLink
+from app.tools.firestore_client import FirestoreClient
+from app.models.schema import ConceptLink
 
 
-# ✅ Gemini setup
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-_model = genai.GenerativeModel(
-    os.getenv("GEMINI_MODEL", "gemini-3-flash-PREVIEW")
-)
+# ✅ Gemini client (NEW SDK)
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
-_db = FirestoreClient()
+
+# ✅ Lazy DB (fix hanging)
+def get_db():
+    return FirestoreClient()
 
 
 # ── PROMPTS ─────────────────────────────
 
 BRIDGE_PROMPT = """
 Find connections between isolated concepts and explain them simply.
+
+Isolated concepts:
+{isolated_concepts}
+
+All concepts:
+{all_concepts}
 
 Return JSON:
 {
@@ -34,6 +40,7 @@ Return JSON:
 }
 """
 
+
 ANALOGY_PROMPT = """
 Explain this concept using a simple analogy.
 
@@ -48,8 +55,10 @@ Return JSON.
 
 def find_and_bridge_isolated_concepts(student_id: str) -> dict:
 
-    concepts = _db.get_concepts(student_id)
-    links = _db.get_concept_links(student_id)
+    db = get_db()   # ✅ FIX
+
+    concepts = db.get_concepts(student_id)
+    links = db.get_concept_links(student_id)
 
     if not concepts:
         return {"error": "No concepts found"}
@@ -69,7 +78,12 @@ def find_and_bridge_isolated_concepts(student_id: str) -> dict:
         all_concepts=json.dumps([c.name for c in concepts]),
     )
 
-    response = _model.generate_content(prompt)
+    # ✅ NEW SDK CALL
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
+    )
+
     raw = response.text.strip()
 
     if raw.startswith("```"):
@@ -96,14 +110,16 @@ def find_and_bridge_isolated_concepts(student_id: str) -> dict:
                 relationship=b.get("relationship", "related"),
                 strength=0.6,
             )
-            _db.save_concept_link(link, student_id)
+            db.save_concept_link(link, student_id)
 
     return result
 
 
 def generate_analogy_for_concept(student_id: str, concept_id: str) -> dict:
 
-    concept = _db.get_concept(student_id, concept_id)
+    db = get_db()   # ✅ FIX
+
+    concept = db.get_concept(student_id, concept_id)
 
     if not concept:
         return {"error": "Concept not found"}
@@ -113,7 +129,12 @@ def generate_analogy_for_concept(student_id: str, concept_id: str) -> dict:
         concept_description=concept.description,
     )
 
-    response = _model.generate_content(prompt)
+    # ✅ NEW SDK CALL
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
+    )
+
     raw = response.text.strip()
 
     if raw.startswith("```"):

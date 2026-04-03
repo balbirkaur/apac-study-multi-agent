@@ -5,22 +5,31 @@ from datetime import datetime
 
 import google.generativeai as genai
 
-from models.schema import Concept, ConceptLink, ForgettingState, IngestionResult
-from tools.firestore_client import FirestoreClient
-from tools.document_parser import extract_text_from_pdf, extract_text_from_string
-from tools.forgetting_curve import compute_next_review
+from app.models.schema import Concept, ConceptLink, ForgettingState, IngestionResult
+from app.tools.firestore_client import FirestoreClient
+from app.tools.document_parser import extract_text_from_pdf, extract_text_from_string
+from app.tools.forgetting_curve import compute_next_review
 
 
-# ✅ Gemini setup
+# ── Gemini setup (SAFE) ─────────────────────
+
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-_model = genai.GenerativeModel(
-    os.getenv("GEMINI_MODEL", "gemini-3-flash-PREVIEW")
-)
-
-_db = FirestoreClient()
 
 
-# ── PROMPT ─────────────────────────────
+def get_model():
+    """Lazy load Gemini model"""
+    return genai.GenerativeModel(
+        os.getenv("GEMINI_MODEL", "models/gemini-pro")
+    )
+
+
+# ── Firestore (SAFE) ─────────────────────
+
+def get_db():
+    return FirestoreClient()
+
+
+# ── PROMPT (FIXED JSON ESCAPING) ───────────
 
 EXTRACTION_PROMPT = """
 Extract key learning concepts and relationships from the following text.
@@ -41,13 +50,13 @@ TEXT:
 """
 
 
-# ── CORE LOGIC ─────────────────────────
+# ── HELPERS ─────────────────────────────
 
-def _extract_concepts_with_gemini(text: str) -> dict:
-    prompt = EXTRACTION_PROMPT.format(text=text[:6000])
-    response = _model.generate_content(prompt)
+def clean_json_response(raw: str):
+    if not raw:
+        return None
 
-    raw = response.text.strip()
+    raw = raw.strip()
 
     if raw.startswith("```"):
         raw = raw.split("```")[1]
@@ -55,10 +64,31 @@ def _extract_concepts_with_gemini(text: str) -> dict:
             raw = raw[4:]
 
     try:
-        return json.loads(raw.strip())
-    except Exception:
+        return json.loads(raw)
+    except:
+        return None
+
+
+def _extract_concepts_with_gemini(text: str) -> dict:
+
+    prompt = EXTRACTION_PROMPT.format(text=text[:6000])  # ✅ FIXED
+
+    try:
+        model = get_model()
+        response = model.generate_content(prompt)
+        raw = response.text
+    except Exception as e:
+        return {"concepts": [], "links": [], "summary": f"Gemini error: {str(e)}"}
+
+    result = clean_json_response(raw)
+
+    if not result:
         return {"concepts": [], "links": [], "summary": raw}
 
+    return result
+
+
+# ── CORE LOGIC ─────────────────────────
 
 def ingest_document(
     student_id: str,
@@ -66,6 +96,8 @@ def ingest_document(
     file_bytes: bytes | None = None,
     text_content: str | None = None,
 ) -> IngestionResult:
+
+    db = get_db()
 
     # 📄 Extract text
     if file_bytes:
@@ -86,6 +118,7 @@ def ingest_document(
 
     # ── Save concepts ──
     for c in extracted.get("concepts", []):
+
         concept = Concept(
             name=c["name"],
             description=c.get("description", ""),
@@ -94,22 +127,20 @@ def ingest_document(
             importance_score=float(c.get("importance_score", 0.8)),
         )
 
-        _db.save_concept(concept, student_id)
+        db.save_concept(concept, student_id)
         concept_map[concept.name] = concept.id
         saved_concepts.append(concept)
 
-        # 🧠 Create forgetting state
-      
-
+        # 🧠 Forgetting state
         state = ForgettingState(
             concept_id=concept.id,
             student_id=student_id,
-            strength=1.0,   # initial memory strength
+            strength=1.0,
             last_reviewed_at=datetime.utcnow(),
         )
 
         state.next_review_at = compute_next_review(state)
-        _db.save_forgetting_state(state)
+        db.save_forgetting_state(state)
 
     # ── Save links ──
     for l in extracted.get("links", []):
@@ -124,7 +155,7 @@ def ingest_document(
                 strength=float(l.get("strength", 0.5)),
             )
 
-            _db.save_concept_link(link, student_id)
+            db.save_concept_link(link, student_id)
             saved_links.append(link)
 
     return IngestionResult(

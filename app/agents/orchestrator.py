@@ -1,10 +1,10 @@
 # agents/orchestrator.py
 
-from agents.ingestion_agent import ingest_document
-from agents.knowledge_graph_agent import analyse_knowledge_graph
-from agents.diagnostic_agent import generate_quiz_for_weakest_concept
-from agents.connection_agent import find_and_bridge_isolated_concepts
-from agents.intervention_agent import get_next_intervention
+from app.agents.ingestion_agent import ingest_document
+from app.agents.knowledge_graph_agent import analyse_knowledge_graph
+from app.agents.diagnostic_agent import generate_quiz_for_weakest_concept
+from app.agents.connection_agent import find_and_bridge_isolated_concepts
+from app.agents.intervention_agent import get_next_intervention
 
 
 def handle_chat(message: str, student_id: str):

@@ -1,24 +1,16 @@
 import os
-from datetime import datetime
 
-import google.generativeai as genai
-
-from tools.firestore_client import FirestoreClient
-from tools.forgetting_curve import compute_retention, get_urgency_label
+from app.tools.firestore_client import FirestoreClient
+from app.tools.forgetting_curve import compute_retention, get_urgency_label
 
 
-# ── Setup ─────────────────────────────
+# ── Firestore (SAFE) ─────────────────────
 
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-
-_model = genai.GenerativeModel(
-    os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-)
-
-_db = FirestoreClient()
+def get_db():
+    return FirestoreClient()
 
 
-# ── SAFE RETENTION (IMPORTANT) ────────
+# ── SAFE RETENTION ─────────────────────
 
 def safe_retention(state):
     strength = getattr(state, "strength", 1.0)
@@ -33,8 +25,10 @@ def safe_retention(state):
 
 def get_next_intervention(student_id: str) -> dict:
 
-    states = _db.get_all_forgetting_states(student_id)
-    concepts = {c.id: c for c in _db.get_concepts(student_id)}
+    db = get_db()
+
+    states = db.get_all_forgetting_states(student_id)
+    concepts = {c.id: c for c in db.get_concepts(student_id)}
 
     if not states:
         return {"message": "No study data found"}
@@ -63,8 +57,10 @@ def get_next_intervention(student_id: str) -> dict:
 
 def get_daily_summary(student_id: str) -> dict:
 
-    states = _db.get_all_forgetting_states(student_id)
-    concepts = {c.id: c for c in _db.get_concepts(student_id)}
+    db = get_db()
+
+    states = db.get_all_forgetting_states(student_id)
+    concepts = {c.id: c for c in db.get_concepts(student_id)}
 
     if not states:
         return {"message": "No data available"}
@@ -81,13 +77,12 @@ def get_daily_summary(student_id: str) -> dict:
             "urgency": get_urgency_label(retention)
         })
 
-    # sort by weakest first
     summary.sort(key=lambda x: x["retention"])
 
     return {
         "student_id": student_id,
         "total_concepts": len(summary),
-        "focus_today": summary[:3],   # top 3 weak
+        "focus_today": summary[:3],
         "all_concepts": summary
     }
 
@@ -96,8 +91,10 @@ def get_daily_summary(student_id: str) -> dict:
 
 def generate_revision_plan(student_id: str, days: int, hours_per_day: float) -> dict:
 
-    states = _db.get_all_forgetting_states(student_id)
-    concepts = {c.id: c for c in _db.get_concepts(student_id)}
+    db = get_db()
+
+    states = db.get_all_forgetting_states(student_id)
+    concepts = {c.id: c for c in db.get_concepts(student_id)}
 
     if not states:
         return {"error": "No data"}
