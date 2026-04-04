@@ -15,7 +15,7 @@ genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 def get_model():
     """Lazy load Gemini model (prevents app hanging)"""
     return genai.GenerativeModel(
-        os.getenv("GEMINI_MODEL", "models/gemini-pro")
+        os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
     )
 
 

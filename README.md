@@ -1,170 +1,153 @@
-# MindMap – AI Study Productivity Assistant
+# 🧠 MindMap – AI Study Productivity Assistant
 
-## 🚀 Overview
-
-MindMap is a **multi-agent AI productivity assistant** designed to help students learn smarter by tracking what they forget and guiding them on what to study next.
-
-Unlike traditional task managers, MindMap uses the **forgetting curve** to prioritize learning, generate quizzes, and create personalized daily study plans.
+> AI + Memory Science = Smarter Learning
 
 ---
 
-## 🎯 Problem Statement
+## 🚀 Live Demo
 
-Students often:
-
-- Forget what they study over time
-- Don’t know what to revise next
-- Use static task lists that ignore memory retention
+- 🌐 **Cloud Run API**: https://mindmap-573620545233.asia-south1.run.app
+- 📘 **Swagger UI**: https://mindmap-573620545233.asia-south1.run.app/docs
+- 💻 **GitHub Repo**: https://github.com/balbirkaur/apac-study-multi-agent
 
 ---
 
-## 💡 Solution
+## 🎯 Problem
 
-MindMap solves this by:
+Students forget what they study because:
 
-- Tracking **concept-level retention**
-- Identifying **weak areas automatically**
-- Generating **AI-powered quizzes**
-- Creating **daily revision plans**
+- 📉 No retention tracking
+- ❌ No intelligent revision system
+- 📋 Static study plans ignore memory science
 
----
-
-## 🧠 Key Features
-
-### ✅ Multi-Agent System
-
-- Ingestion Agent → Extracts concepts from notes
-- Knowledge Graph Agent → Organizes concepts
-- Diagnostic Agent → Generates quizzes
-- Intervention Agent → Suggests what to study next
-- Connection Agent → Builds concept relationships
+> Research shows: **50% of learning is forgotten within 24 hours without revision**
 
 ---
 
-### 📊 Retention Tracking
+## 💡 Solution – MindMap
 
-- Uses **forgetting curve logic**
-- Calculates retention score (0–1)
-- Prioritizes weakest concepts
+MindMap uses:
 
----
+- 🧠 Forgetting Curve Algorithm
+- 🤖 Multi-Agent AI System
+- 📊 Retention Tracking
 
-### 📝 Smart Quiz Generation
+To:
 
-- AI-generated MCQs using Gemini
-- Targets weakest concepts first
-
----
-
-### 📅 Daily Study Planner
-
-- Suggests what to study today
-- Focuses on high-urgency concepts
-
----
-
-### 💾 Persistent Storage
-
-- Firestore database
-- Stores:
-  - Concepts
-  - Retention states
-  - Learning progress
+- Identify weak concepts
+- Generate adaptive quizzes
+- Create personalized study plans
 
 ---
 
 ## 🏗️ Architecture
 
-User → FastAPI → Orchestrator → Agents
-                  ↓
-              Firestore DB
-                  ↓
-              Gemini AI
+```
+User → FastAPI → Orchestrator → Agents → Firestore → Gemini AI
+```
+
+### 🔹 Agents
+
+- 📥 **Ingestion Agent** → Extracts concepts
+- 🧠 **Knowledge Graph Agent** → Builds relationships
+- 🔗 **Connection Agent** → Links isolated concepts
+- 🧪 **Diagnostic Agent** → Generates quizzes
+- 📅 **Intervention Agent** → Creates study plans
 
 ---
 
 ## ⚙️ Tech Stack
 
-- FastAPI (Backend API)
-- Google Firestore (Database)
-- Gemini AI (LLM)
-- Python (Core logic)
+| Layer      | Technology        |
+| ---------- | ----------------- |
+| Backend    | FastAPI           |
+| AI         | Google Gemini API |
+| Database   | Firestore         |
+| Deployment | Google Cloud Run  |
+| Container  | Docker            |
 
 ---
 
-## 📦 Installation
+## 📡 API Endpoints
 
-```bash
-git clone https://github.com/balbirkaur/apac-study-multi-agent.git
-cd apac-study-multi-agent
-python -m venv .venv
-.venv\Scripts\activate   # Windows
-pip install -r requirements.txt
+| Method | Endpoint                     | Description          |
+| ------ | ---------------------------- | -------------------- |
+| POST   | `/ingest/text`               | Ingest study content |
+| GET    | `/retention/{student_id}`    | Retention dashboard  |
+| GET    | `/quiz/{student_id}/weakest` | Generate quiz        |
+| GET    | `/daily/{student_id}`        | Daily study plan     |
+| GET    | `/graph/{student_id}`        | Knowledge graph      |
+| GET    | `/intervention/{student_id}` | Next action          |
+| POST   | `/quiz/submit`               | Submit quiz          |
+| POST   | `/chat`                      | AI assistant         |
+
+---
+
+## 🔗 Live Demo Flow
+
+Try the system in this order:
+
+1. **POST /ingest/text**
+2. **GET /retention/{student_id}**
+3. **GET /quiz/{student_id}/weakest**
+4. **POST /quiz/submit**
+5. **GET /daily/{student_id}**
+
+This demonstrates the full learning cycle from input → retention → improvement.
+
+---
+
+## 🔄 How It Works
+
+1. User uploads study content
+2. AI extracts concepts & relationships
+3. Knowledge graph is created
+4. Retention is calculated using forgetting curve
+5. Weak concepts are identified
+6. AI generates adaptive quiz
+7. System updates learning model
+8. Personalized revision plan is generated
+
+---
+
+## ✨ Key Features
+
+- ✅ Multi-Agent AI Architecture
+- ✅ AI-powered concept extraction
+- ✅ Forgetting curve-based retention tracking
+- ✅ Adaptive quiz generation
+- ✅ Personalized study plans
+- ✅ Cloud-native deployment
+
+---
+
+## 🧠 Why MindMap is Unique
+
+- Uses **cognitive science (forgetting curve)**, not just AI
+- Multi-agent system instead of single model
+- Focuses on **memory retention**, not just content generation
+- Fully deployed and scalable
+
+---
+
+## 🧪 Example API Usage
+
+### 📥 Ingest Notes
+
+```json
+{
+  "student_id": "s1",
+  "document_name": "biology",
+  "content": "Photosynthesis is the process..."
+}
 ```
 
 ---
 
-## 🔑 Environment Setup
-
-Create `.env` file:
-
-```env
-GOOGLE_API_KEY=your_gemini_api_key
-GOOGLE_CLOUD_PROJECT=your_project_id
-```
-
-Authenticate:
-
-```bash
-gcloud auth application-default login
-```
-
----
-
-## ▶️ Run the Project
-
-```bash
-uvicorn api.main:app --reload --port 8080
-```
-
-Open Swagger UI:
+### ❓ Generate Quiz
 
 ```
-http://127.0.0.1:8080/docs
-```
-
----
-
-## 🧪 API Endpoints
-
-### 📥 Ingest Study Content
-
-```
-POST /ingest/text
-```
-
----
-
-### 📊 Retention Dashboard
-
-```
-GET /retention/{student_id}
-```
-
----
-
-### 📚 Review Concepts
-
-```
-GET /review/{student_id}
-```
-
----
-
-### 🧠 Generate Quiz
-
-```
-GET /quiz/{student_id}/weakest
+GET /quiz/s1/weakest
 ```
 
 ---
@@ -172,52 +155,66 @@ GET /quiz/{student_id}/weakest
 ### 📅 Daily Plan
 
 ```
-GET /daily/{student_id}
+GET /daily/s1
 ```
 
 ---
 
-### 🤖 Chat Assistant
+## 📸 Screenshots
+
+> Add your Swagger UI screenshot here
 
 ```
-POST /chat
+/docs/swagger.png
 ```
 
 ---
 
-## 🎬 Demo Flow
+## ⚡ Performance
 
-1. Ingest study notes
-2. View retention dashboard
-3. Generate quiz for weakest concept
-4. Get daily study plan
+- FastAPI async APIs
+- Firestore scalable backend
+- Cloud Run auto-scaling
+
+---
+
+## ☁️ Deployment
+
+```bash
+gcloud run deploy mindmap \
+  --source . \
+  --region asia-south1 \
+  --allow-unauthenticated \
+  --set-env-vars GOOGLE_API_KEY=your_key,GEMINI_MODEL=models/gemini-pro
+```
+
+---
+
+## 🎬 Demo Video
+
+👉 _(Add your demo video link here)_
 
 ---
 
 ## 🏆 Why This Project Stands Out
 
-- Combines **AI + learning science**
-- Goes beyond task management → manages **memory**
-- Fully automated study workflow
-- Scalable multi-agent architecture
+- 🔥 AI + Cognitive Science combination
+- 🧠 Real-world learning problem
+- ⚡ Fully deployed system
+- 🏗️ Clean architecture
+- 📈 Scalable and production-ready
 
 ---
 
-## 🔮 Future Enhancements
+## 👩‍💻 Author
 
-- Google Calendar integration
-- Mobile app
-- Real-time notifications
-- Personalized learning analytics
+**Balbir Kaur**
 
 ---
 
-## 👨‍💻 Author
+## 🎯 Final Note
 
-Balbir Kaur
+> MindMap doesn’t just help students study —
+> it helps them **remember smarter**.
 
 ---
-
-## ⭐ Tagline
-
-“MindMap helps you remember what matters.”
