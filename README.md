@@ -192,7 +192,7 @@ gcloud run deploy mindmap \
 
 ## 🎬 Demo Video
 
-👉 _(Add your demo video link here)_
+👉 https://youtu.be/rCC067HyslE
 
 ---
 
